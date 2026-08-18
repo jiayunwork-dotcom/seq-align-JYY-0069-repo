@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>序列比对工具</title>
+    <style>
+        body { font-family: 'Courier New', monospace; max-width: 900px; margin: 0 auto; padding: 20px; background: #fafafa; }
+        h1 { color: #2c3e50; font-family: system-ui, sans-serif; }
+        .card { background: white; border-radius: 8px; padding: 20px; margin: 16px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        label { display: block; margin: 8px 0 4px; font-weight: bold; font-family: system-ui, sans-serif; }
+        input, textarea, select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-family: 'Courier New', monospace; }
+        textarea { height: 60px; resize: vertical; }
+        button { background: #27ae60; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-top: 12px; font-size: 14px; }
+        button:hover { background: #229954; }
+        .result { margin-top: 16px; padding: 16px; background: #1a1a2e; color: #0f0; border-radius: 4px; white-space: pre; overflow-x: auto; font-size: 13px; line-height: 1.4; }
+        .stats { font-family: system-ui, sans-serif; color: #333; margin-top: 12px; }
+        .stats span { margin-right: 16px; }
+        .row { display: flex; gap: 12px; }
+        .row > div { flex: 1; }
+        .error { color: #e74c3c; margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <h1>序列比对 (Sequence Alignment)</h1>
+
+    <div class="card">
+        <label>序列 A (DNA/Protein)</label>
+        <textarea id="seqA" placeholder="输入第一条序列，如 ACGTACGT...">GATTACA</textarea>
+        <label>序列 B</label>
+        <textarea id="seqB" placeholder="输入第二条序列">GCATGCU</textarea>
+    </div>
+
+    <div class="card">
+        <div class="row">
+            <div>
+                <label>比对模式</label>
+                <select id="mode">
+                    <option value="global">全局比对 (Needleman-Wunsch)</option>
+                    <option value="local">局部比对 (Smith-Waterman)</option>
+                </select>
+            </div>
+            <div>
+                <label>匹配分 / 错配分</label>
+                <div class="row">
+                    <input id="match" type="number" value="2" style="width:48%">
+                    <input id="mismatch" type="number" value="-1" style="width:48%">
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div><label>Gap Open</label><input id="gapOpen" type="number" value="-5"></div>
+            <div><label>Gap Extend</label><input id="gapExtend" type="number" value="-1"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <button onclick="doAlign()">运行比对</button>
+        <div id="error" class="error"></div>
+    </div>
+
+    <div class="card" id="resultCard" style="display:none">
+        <h3 style="font-family:system-ui,sans-serif">比对结果</h3>
+        <div class="stats" id="stats"></div>
+        <div class="result" id="alignment"></div>
+    </div>
+
+    <script>
+    async function doAlign() {
+        document.getElementById('error').textContent = '';
+        const body = {
+            seq_a: document.getElementById('seqA').value.trim().replace(/\s/g, ''),
+            seq_b: document.getElementById('seqB').value.trim().replace(/\s/g, ''),
+            mode: document.getElementById('mode').value,
+            match: +document.getElementById('match').value,
+            mismatch: +document.getElementById('mismatch').value,
+            gap_open: +document.getElementById('gapOpen').value,
+            gap_extend: +document.getElementById('gapExtend').value,
+        };
+        if (!body.seq_a || !body.seq_b) {
+            document.getElementById('error').textContent = '请输入两条序列';
+            return;
+        }
+        try {
+            const resp = await fetch('/api/align', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body),
+            });
+            if (!resp.ok) throw new Error(await resp.text());
+            const data = await resp.json();
+            showResult(data);
+        } catch (e) {
+            document.getElementById('error').textContent = '请求失败: ' + e.message;
+        }
+    }
+
+    function showResult(data) {
+        document.getElementById('resultCard').style.display = '';
+        // Stats.
+        const pct = (data.identity * 100).toFixed(1);
+        document.getElementById('stats').innerHTML =
+            '<span>得分: <b>' + data.score + '</b></span>' +
+            '<span>一致性: <b>' + pct + '%</b></span>' +
+            '<span>长度: <b>' + data.length + '</b></span>' +
+            '<span>Gap数: <b>' + data.gaps + '</b></span>';
+        // Alignment visualization.
+        const a = data.aligned_a;
+        const b = data.aligned_b;
+        let matchLine = '';
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] === b[i] && a[i] !== '-') matchLine += '|';
+            else if (a[i] === '-' || b[i] === '-') matchLine += ' ';
+            else matchLine += '.';
+        }
+        // Wrap at 60 chars.
+        let text = '';
+        for (let start = 0; start < a.length; start += 60) {
+            text += 'Seq A: ' + a.slice(start, start+60) + '\n';
+            text += '       ' + matchLine.slice(start, start+60) + '\n';
+            text += 'Seq B: ' + b.slice(start, start+60) + '\n\n';
+        }
+        document.getElementById('alignment').textContent = text;
+    }
+    </script>
+</body>
+</html>
