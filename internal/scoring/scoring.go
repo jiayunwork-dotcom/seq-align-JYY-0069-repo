@@ -76,7 +76,7 @@ func ScoreAlignment(a, b string, s Scheme) (int, error) {
 		return 0, err
 	}
 	if len(a) != len(b) {
-		return 0, nil
+		return 0, fmt.Errorf("scoring: aligned strings differ in length (%d vs %d)", len(a), len(b))
 	}
 	ok := func(c byte) bool { return c == '-' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') }
 	total := 0

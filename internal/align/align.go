@@ -23,6 +23,9 @@ type Result struct {
 // Global performs Needleman-Wunsch global alignment.
 // Supports both linear gap (single Gap field) and affine gap (GapOpen/GapExtend).
 func Global(a, b string, s scoring.Scheme) (Result, error) {
+	if err := scoring.Validate(s); err != nil {
+		return Result{}, err
+	}
 	if len(a) == 0 || len(b) == 0 {
 		return Result{}, fmt.Errorf("align: global alignment requires non-empty sequences")
 	}
